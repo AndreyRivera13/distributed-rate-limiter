@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: distributed-rate-limiter
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 2
+
+rate-limiter:
+  default-algorithm: sliding-window
+  bucket-capacity: 20
+  bucket-refill-per-sec: 10.0
+  rules:
+    global:
+      limit: 100
+      window-ms: 60000
+    "/api/v1/auth/login":
+      limit: 5
+      window-ms: 60000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.portfolio.ratelimiter: DEBUG

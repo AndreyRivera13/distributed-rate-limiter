@@ -1,0 +1,108 @@
+version: '3.9'
+
+networks:
+  rl-net:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+services:
+
+  redis-primary:
+    image: redis:7.2-alpine
+    container_name: redis-primary
+    command: redis-server --save 60 1 --loglevel warning
+    ports: ["6379:6379"]
+    networks: [rl-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-replica:
+    image: redis:7.2-alpine
+    container_name: redis-replica
+    command: redis-server --replicaof redis-primary 6379 --loglevel warning
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+    networks: [rl-net]
+
+  redis-sentinel:
+    image: redis:7.2-alpine
+    container_name: redis-sentinel
+    command: redis-sentinel /etc/sentinel.conf
+    volumes:
+      - ./infra/sentinel.conf:/etc/sentinel.conf
+    depends_on: [redis-primary, redis-replica]
+    networks: [rl-net]
+
+  api-1:
+    build: { context: ., dockerfile: Dockerfile }
+    container_name: api-1
+    environment:
+      REDIS_HOST: redis-primary
+      REDIS_PORT: 6379
+    ports: ["8081:8080"]
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+    networks: [rl-net]
+
+  api-2:
+    build: { context: ., dockerfile: Dockerfile }
+    container_name: api-2
+    environment:
+      REDIS_HOST: redis-primary
+      REDIS_PORT: 6379
+    ports: ["8082:8080"]
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+    networks: [rl-net]
+
+  api-3:
+    build: { context: ., dockerfile: Dockerfile }
+    container_name: api-3
+    environment:
+      REDIS_HOST: redis-primary
+      REDIS_PORT: 6379
+    ports: ["8083:8080"]
+    depends_on:
+      redis-primary:
+        condition: service_healthy
+    networks: [rl-net]
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx-lb
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports: ["80:80"]
+    depends_on: [api-1, api-2, api-3]
+    networks: [rl-net]
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["9090:9090"]
+    command: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.retention.time=7d']
+    networks: [rl-net]
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports: ["3001:3000"]
+    depends_on: [prometheus]
+    networks: [rl-net]
