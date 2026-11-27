@@ -160,20 +160,30 @@ try {
 
 ## Client identification
 
-Priority order (first non-blank wins):
+`X-User-ID`, `X-API-Key` and `X-Forwarded-For` are spoofable unless a trusted
+edge authenticates or overwrites them. The filter therefore ignores those
+headers unless you opt in.
 
-1. `X-User-ID` — authenticated user ID (most precise)
-2. `X-API-Key` — API consumer key
-3. `X-Forwarded-For` — first IP in the chain (behind reverse proxy)
-4. `getRemoteAddr()` — direct TCP connection IP
+**Default** (`trust-client-headers: false`, `trust-proxy: false`):
+the client key is `request.getRemoteAddr()` only.
 
-**Why this order:** authenticated identity is more precise than network identity.
-Without it, a logged-in user behind a shared office IP would be throttled
-by their colleagues' requests.
+When the flags are enabled, priority (first non-blank wins) is:
 
-**X-Forwarded-For gotcha:** always take the _first_ IP (leftmost), not the last.
-The last IP is added by your own proxy and can be spoofed if you take
-a client-supplied value.
+1. `X-User-ID` — only if `rate-limiter.trust-client-headers=true`
+2. `X-API-Key` — only if `rate-limiter.trust-client-headers=true`
+3. `X-Forwarded-For` (leftmost hop) — only if `rate-limiter.trust-proxy=true`
+4. `getRemoteAddr()` — direct TCP connection IP (always the fallback)
+
+**Why authenticated identity can be better than IP:** a logged-in user behind
+a shared office IP would otherwise be throttled by their colleagues' requests.
+Only enable `trust-client-headers` when the gateway or an auth layer sets
+those headers and clients cannot forge them.
+
+**X-Forwarded-For:** the leftmost IP is the original client *when every hop
+in front of the app is a trusted proxy that appends or overwrites the header*.
+A client can prepend arbitrary values, so never honor `X-Forwarded-For` on a
+socket exposed directly to the internet. Enable `trust-proxy` only behind a
+proxy you control.
 
 ---
 

@@ -8,7 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.scripting.support.ResourceScriptSource;
 
 import java.util.List;
 
@@ -40,9 +39,10 @@ public class SlidingWindowRateLimiter implements RateLimiter {
         this.limit     = limit;
         this.windowMs  = windowMs;
         this.keyPrefix = keyPrefix;
-        this.script    = RedisScript.of(
-                new ResourceScriptSource(new ClassPathResource("sliding_window.lua")),
-                List.class);
+        @SuppressWarnings("unchecked")
+        RedisScript<List<Long>> loaded = (RedisScript<List<Long>>) (RedisScript<?>) RedisScript.of(
+                new ClassPathResource("sliding_window.lua"), List.class);
+        this.script = loaded;
 
         this.allowedCounter = counter(registry, "allowed");
         this.deniedCounter  = counter(registry, "denied");

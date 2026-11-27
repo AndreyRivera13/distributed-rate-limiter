@@ -19,6 +19,11 @@ rate-limiter:
   default-algorithm: sliding-window
   bucket-capacity: 20
   bucket-refill-per-sec: 10.0
+  # Spoofable identity headers are ignored unless explicitly enabled.
+  # trust-proxy: honor X-Forwarded-For (only behind a trusted proxy).
+  # trust-client-headers: honor X-User-ID and X-API-Key (only if the edge authenticates them).
+  trust-proxy: ${TRUST_PROXY:false}
+  trust-client-headers: ${TRUST_CLIENT_HEADERS:false}
   rules:
     global:
       limit: 100
