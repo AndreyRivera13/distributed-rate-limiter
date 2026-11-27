@@ -1,5 +1,6 @@
 package com.portfolio.ratelimiter.controller;
 
+import com.portfolio.ratelimiter.support.RedisKeyCounter;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -7,7 +8,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/metrics")
@@ -23,7 +26,7 @@ public class MetricsController {
         double allowed = count("rate_limiter.requests", "result", "allowed");
         double denied  = count("rate_limiter.requests", "result", "denied");
         double blocked = count("rate_limiter.blocked_requests");
-        long   keys    = redisKeys("sw:*") + redisKeys("tb:*") + redisKeys("fw:*");
+        long   keys    = RedisKeyCounter.countByPatterns(redis, "sw:*", "tb:*", "fw:*");
 
         return ResponseEntity.ok(Map.of(
                 "totalAllowed", (long) allowed,
@@ -70,10 +73,4 @@ public class MetricsController {
         } catch (Exception e) { return 0.0; }
     }
 
-    private long redisKeys(String pattern) {
-        try {
-            Set<String> keys = redis.keys(pattern);
-            return keys != null ? keys.size() : 0L;
-        } catch (Exception e) { return 0L; }
-    }
 }

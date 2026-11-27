@@ -16,6 +16,19 @@ public class RateLimiterProperties {
     private double bucketRefillPerSec   = 10.0;
     private Map<String, Rule> rules     = Map.of("global", new Rule(100, 60_000L));
 
+    /**
+     * When {@code true}, honor {@code X-Forwarded-For} (leftmost hop) for client
+     * identity. Enable only behind a trusted reverse proxy that overwrites or
+     * strips that header. Default {@code false}.
+     */
+    private boolean trustProxy = false;
+
+    /**
+     * When {@code true}, honor {@code X-User-ID} and {@code X-API-Key}. Those
+     * headers are spoofable unless your edge authenticates them. Default {@code false}.
+     */
+    private boolean trustClientHeaders = false;
+
     @Data
     public static class Rule {
         private long limit;

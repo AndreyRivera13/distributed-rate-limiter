@@ -17,13 +17,14 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Servlet filter that enforces rate limits on every /api/** request.
+ * Servlet filter that enforces rate limits on every /api/** request
+ * except {@code /actuator} and {@code /api/metrics}.
  *
- * Client resolution order (first non-blank wins):
- *   1. X-User-ID    — authenticated user
- *   2. X-API-Key    — API consumer
- *   3. X-Forwarded-For — behind reverse proxy
- *   4. getRemoteAddr() — direct connection
+ * <p>Client identity is resolved by {@link ClientKeyResolver}. Spoofable
+ * headers ({@code X-User-ID}, {@code X-API-Key}, {@code X-Forwarded-For})
+ * are ignored unless the corresponding trust flags are enabled.
+ *
+ * @see ClientKeyResolver
  */
 @Slf4j
 public class RateLimitFilter extends OncePerRequestFilter {
@@ -33,15 +34,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final String H_RESET     = "X-RateLimit-Reset";
     private static final String H_RETRY     = "Retry-After";
 
-    private final RateLimiter  limiter;
-    private final ObjectMapper mapper  = new ObjectMapper();
-    private final Counter      blocked;
-    private final Timer        checkTimer;
+    private final RateLimiter        limiter;
+    private final ClientKeyResolver  clientKeyResolver;
+    private final ObjectMapper       mapper  = new ObjectMapper();
+    private final Counter            blocked;
+    private final Timer              checkTimer;
 
-    public RateLimitFilter(RateLimiter limiter, MeterRegistry registry) {
-        this.limiter   = limiter;
-        this.blocked   = Counter.builder("rate_limiter.blocked_requests").register(registry);
-        this.checkTimer = Timer.builder("rate_limiter.check_duration").register(registry);
+    public RateLimitFilter(RateLimiter limiter,
+                           MeterRegistry registry,
+                           ClientKeyResolver clientKeyResolver) {
+        this.limiter            = limiter;
+        this.clientKeyResolver  = clientKeyResolver;
+        this.blocked            = Counter.builder("rate_limiter.blocked_requests").register(registry);
+        this.checkTimer         = Timer.builder("rate_limiter.check_duration").register(registry);
     }
 
     @Override
@@ -55,7 +60,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String clientKey = resolveClientKey(req);
+        String clientKey = clientKeyResolver.resolve(req);
         RateLimitResult result = checkTimer.record(() -> limiter.check(clientKey));
 
         res.setHeader(H_LIMIT,     String.valueOf(result.getLimit()));
@@ -81,18 +86,5 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 "retryAfter", result.getRetryAfterSeconds(),
                 "resetAt",    result.getResetEpochSecond()
         ));
-    }
-
-    private String resolveClientKey(HttpServletRequest req) {
-        String uid = req.getHeader("X-User-ID");
-        if (uid != null && !uid.isBlank()) return "user:" + uid;
-
-        String key = req.getHeader("X-API-Key");
-        if (key != null && !key.isBlank()) return "apikey:" + key;
-
-        String fwd = req.getHeader("X-Forwarded-For");
-        if (fwd != null && !fwd.isBlank()) return "ip:" + fwd.split(",")[0].trim();
-
-        return "ip:" + req.getRemoteAddr();
     }
 }

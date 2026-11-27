@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
-import org.springframework.scripting.support.ResourceScriptSource;
 
 import java.util.List;
 
@@ -41,9 +40,10 @@ public class TokenBucketRateLimiter implements RateLimiter {
         this.ratePerMs  = refillPerSec / 1000.0;
         this.keyPrefix  = keyPrefix;
         this.ttlMs      = (long) (capacity / ratePerMs * 2);
-        this.script     = RedisScript.of(
-                new ResourceScriptSource(new ClassPathResource("token_bucket.lua")),
-                List.class);
+        @SuppressWarnings("unchecked")
+        RedisScript<List<Long>> loaded = (RedisScript<List<Long>>) (RedisScript<?>) RedisScript.of(
+                new ClassPathResource("token_bucket.lua"), List.class);
+        this.script = loaded;
         this.allowedCounter = counter(registry, "allowed");
         this.deniedCounter  = counter(registry, "denied");
     }

@@ -1,3 +1,5 @@
+import io.spring.gradle.dependencymanagement.dsl.DependencyManagementExtension
+
 plugins {
     java
     id("org.springframework.boot")  version "3.2.5" apply false
@@ -37,7 +39,8 @@ subprojects {
         testAnnotationProcessor("org.projectlombok:lombok:$lombokVersion")
     }
 
-    dependencyManagement {
+    // apply(plugin) does not expose the Kotlin DSL accessor in this root script
+    configure<DependencyManagementExtension> {
         imports {
             mavenBom("org.springframework.boot:spring-boot-dependencies:3.2.5")
         }

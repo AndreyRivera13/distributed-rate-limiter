@@ -9,7 +9,7 @@ Production-grade, multi-node rate limiter — **Java 21 + Spring Boot 3 + Gradle
 ## Quick start (local)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/distributed-rate-limiter
+git clone https://github.com/AndreyRivera13/distributed-rate-limiter
 cd distributed-rate-limiter
 
 # Start full stack: Redis Sentinel + 3 API nodes + Nginx + Prometheus + Grafana
@@ -27,6 +27,23 @@ k6 run k6/load-test.js
 ```
 
 **Dashboard:** `cd rate-limiter-dashboard && npm install && npm run dev` → http://localhost:3000
+
+**Grafana** (local compose): http://localhost:3001 — default admin password is `admin`. Override it with `GRAFANA_ADMIN_PASSWORD` (do not use the default outside local development).
+
+---
+
+## Client identification
+
+By default the filter does **not** trust spoofable request headers:
+
+| Flag | Env var | Default | Effect |
+|---|---|---|---|
+| `rate-limiter.trust-client-headers` | `TRUST_CLIENT_HEADERS` | `false` | Honor `X-User-ID` then `X-API-Key` |
+| `rate-limiter.trust-proxy` | `TRUST_PROXY` | `false` | Honor the leftmost `X-Forwarded-For` hop |
+
+When both flags are off, the client key is `request.getRemoteAddr()` only. Enable the flags only when a trusted edge authenticates those headers or a trusted reverse proxy overwrites `X-Forwarded-For`.
+
+The local `docker-compose.yml` stack sets both to `true` because the APIs sit behind nginx and the smoke / k6 tests send `X-User-ID`.
 
 ---
 
@@ -57,7 +74,7 @@ State lives entirely in Redis — all nodes share the same counters.
 # Run API locally (requires Redis on localhost:6379)
 ./gradlew :rate-limiter-api:bootRun
 
-# Run tests only
+# Run tests only (algorithm tests need Redis on localhost:6379, or REDIS_HOST / REDIS_PORT)
 ./gradlew test
 
 # Build fat JAR
